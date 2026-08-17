@@ -16,6 +16,7 @@ Requires OpenSSL 1.1.1 or newer (Ed25519 support).
 ### Generate a key pair
 
 ```bash
+umask 077  # every file below, including client.pem, is created private
 openssl genpkey -algorithm ed25519 -out client.pem
 
 # The last 32 bytes of the PKCS#8 private DER are the raw seed; the last
@@ -30,10 +31,10 @@ echo "ed25519-pub:$pub"
 ```
 
 To write a private-key file the tooling parses (only the token line is
-required; `#` header lines are optional):
+required; `#` header lines are optional). Unlike the binary, the `>`
+redirection overwrites an existing file, so pick a path that is not in use:
 
 ```bash
-umask 077
 {
   echo "# Ed25519 authentication key"
   echo "# Created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -51,7 +52,7 @@ public half. A 32-byte seed always encodes to 43 base64 characters, so exactly
 one `=` restores the padding for decoding.
 
 ```bash
-tok=$(grep -v '^#' client.key)
+tok=$(grep -m 1 '^[[:space:]]*ed25519-sec:' client.key | tr -d '[:space:]')
 pub=$(
   {
     printf '\x30\x2e\x02\x01\x00\x30\x05\x06\x03\x2b\x65\x70\x04\x22\x04\x20'
@@ -106,8 +107,9 @@ console.log("ed25519-pub:" + publicJwk.x);
 
 ## Python
 
-Requires the [`cryptography`](https://pypi.org/project/cryptography/) package;
-the standard library alone cannot do Ed25519. With [uv](https://docs.astral.sh/uv/)
+Requires Python 3.9 or newer and the
+[`cryptography`](https://pypi.org/project/cryptography/) package; the standard
+library alone cannot do Ed25519. With [uv](https://docs.astral.sh/uv/)
 the scripts below run in a throwaway environment without touching the system
 Python:
 
@@ -124,6 +126,8 @@ uv run generate.py
 ```
 
 ### Generate a key pair
+
+Save as `generate.py`:
 
 ```python
 import base64
@@ -149,6 +153,8 @@ print(token("ed25519-pub:", public))
 
 ### Derive the public token from an existing private token
 
+Save as `derive.py` and run the same way:
+
 ```python
 import base64
 from cryptography.hazmat.primitives import serialization
@@ -156,9 +162,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 with open("client.key") as file:
     tok = next(
-        line.strip()
-        for line in file
-        if line.strip() and not line.startswith("#")
+        line
+        for line in map(str.strip, file)
+        if line and not line.startswith("#")
     )
 
 seed = base64.urlsafe_b64decode(tok.removeprefix("ed25519-sec:") + "=")
@@ -176,4 +182,6 @@ When the binary works again, confirm a fallback-generated key matches:
 flexaccess-keys show-auth-key --private-key-file client.key
 ```
 
-The printed `ed25519-pub:` token must equal the one computed above.
+The printed entry starts with the `ed25519-pub:` token, which must equal the
+one computed above; a comment from the key file's `# Public key:` header, if
+present, follows it.
