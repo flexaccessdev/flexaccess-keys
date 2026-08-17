@@ -17,7 +17,9 @@ the library only signs or verifies the bytes supplied by that consumer.
 
 ## Key format
 
-Both tokens hold exactly 32 raw bytes as unpadded URL-safe base64:
+[docs/key-format.md](docs/key-format.md) is the normative specification;
+consumers must not reimplement the format. In short, both tokens hold exactly
+32 raw bytes as unpadded URL-safe base64:
 
 ```text
 ed25519-sec:<private seed>

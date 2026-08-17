@@ -47,6 +47,23 @@ enum Command {
     },
 }
 
+/// Expand a leading `~` so quoted paths like `"~/keys/client.key"` work even
+/// though the shell never saw the tilde.
+fn expand_tilde(path: PathBuf) -> PathBuf {
+    let home = || {
+        let variable = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+        std::env::var_os(variable).map(PathBuf::from)
+    };
+    match path.to_str() {
+        Some("~") => home().unwrap_or(path),
+        Some(text) => match text.strip_prefix("~/").and_then(|rest| Some(home()?.join(rest))) {
+            Some(expanded) => expanded,
+            None => path,
+        },
+        None => path,
+    }
+}
+
 fn main() -> flexaccess_keys::Result<()> {
     match Args::parse().command {
         Command::GenerateAuthKey {
@@ -55,7 +72,7 @@ fn main() -> flexaccess_keys::Result<()> {
             force,
             json,
         } => flexaccess_keys::generate_auth_key_command(
-            output.as_deref(),
+            output.map(expand_tilde).as_deref(),
             force,
             comment.as_deref().unwrap_or_default(),
             json,
@@ -65,7 +82,7 @@ fn main() -> flexaccess_keys::Result<()> {
             comment,
             json,
         } => flexaccess_keys::show_auth_key_command(
-            &private_key_file,
+            &expand_tilde(private_key_file),
             comment.as_deref(),
             json,
         ),
