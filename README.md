@@ -80,6 +80,9 @@ from the private key and writes it to stdout; add `--json` and select
 `.authorized_key` with `jq` for structured automation. Stderr is reserved for
 errors in every mode.
 
+If the binary is unavailable, the same tokens can be produced with OpenSSL or
+Python; see [docs/fallback-key-generation.md](docs/fallback-key-generation.md).
+
 ## Library
 
 Before the first tagged release, consumers can use the Git repository directly:
