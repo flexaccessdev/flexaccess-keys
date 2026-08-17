@@ -62,6 +62,48 @@ pub=$(
 echo "ed25519-pub:$pub"
 ```
 
+## Node.js
+
+The easiest fallback: the built-in `node:crypto` module supports Ed25519 with
+no third-party packages, and its JWK export fields (`d` for the seed, `x` for
+the public key) are already unpadded URL-safe base64 — the token encoding.
+Requires Node 16 or newer.
+
+### Generate a key pair
+
+```bash
+node -e '
+const { generateKeyPairSync } = require("node:crypto");
+const { privateKey } = generateKeyPairSync("ed25519");
+const jwk = privateKey.export({ format: "jwk" });
+console.log("ed25519-sec:" + jwk.d);
+console.log("ed25519-pub:" + jwk.x);
+'
+```
+
+### Derive the public token from an existing private token
+
+As with OpenSSL, rebuild the PKCS#8 DER around the decoded seed and let the
+platform derive the public half:
+
+```js
+const { createPrivateKey, createPublicKey } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+
+const tok = readFileSync("client.key", "utf8")
+  .split("\n")
+  .map((line) => line.trim())
+  .find((line) => line && !line.startsWith("#"));
+
+const der = Buffer.concat([
+  Buffer.from("302e020100300506032b657004220420", "hex"),
+  Buffer.from(tok.replace("ed25519-sec:", ""), "base64url"),
+]);
+const privateKey = createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+const publicJwk = createPublicKey(privateKey).export({ format: "jwk" });
+console.log("ed25519-pub:" + publicJwk.x);
+```
+
 ## Python
 
 Requires the [`cryptography`](https://pypi.org/project/cryptography/) package;
