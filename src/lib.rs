@@ -416,22 +416,20 @@ fn validate_comment(comment: &str) -> Result<&str> {
 }
 
 /// Write a private key file without overwriting by default. On Unix the file
-/// is created and retained with mode `0600`, including forced overwrites.
+/// is created and retained with mode `0600`, including forced overwrites,
+/// which replace the target atomically via a temporary file.
 pub fn write_private_key_file(path: &Path, content: &str, force: bool) -> Result<()> {
+    let write_error = |source| Error::WriteFile {
+        path: path.to_path_buf(),
+        source,
+    };
+
     if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent).map_err(|source| Error::WriteFile {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        std::fs::create_dir_all(parent).map_err(write_error)?;
     }
 
     let mut options = OpenOptions::new();
-    options.write(true);
-    if force {
-        options.create(true).truncate(true);
-    } else {
-        options.create_new(true);
-    }
+    options.write(true).create_new(true);
 
     #[cfg(unix)]
     {
@@ -439,32 +437,44 @@ pub fn write_private_key_file(path: &Path, content: &str, force: bool) -> Result
         options.mode(0o600);
     }
 
-    let mut file = options.open(path).map_err(|source| {
-        if !force && source.kind() == std::io::ErrorKind::AlreadyExists {
-            Error::FileExists(path.to_path_buf())
-        } else {
-            Error::WriteFile {
-                path: path.to_path_buf(),
-                source,
+    if !force {
+        let mut file = options.open(path).map_err(|source| {
+            if source.kind() == std::io::ErrorKind::AlreadyExists {
+                Error::FileExists(path.to_path_buf())
+            } else {
+                write_error(source)
             }
-        }
-    })?;
+        })?;
+        return write_and_sync(&mut file, content).map_err(write_error);
+    }
 
+    let mut suffix = [0; 8];
+    getrandom::fill(&mut suffix)
+        .map_err(|error| write_error(std::io::Error::other(error.to_string())))?;
+    let mut temp_name = std::ffi::OsString::from(".");
+    temp_name.push(path.file_name().unwrap_or_default());
+    temp_name.push(format!(".{}.tmp", BASE64.encode(suffix)));
+    let temp_path = path.with_file_name(temp_name);
+
+    let result = options
+        .open(&temp_path)
+        .and_then(|mut file| write_and_sync(&mut file, content))
+        .and_then(|()| std::fs::rename(&temp_path, path))
+        .map_err(write_error);
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    result
+}
+
+fn write_and_sync(file: &mut std::fs::File, content: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(std::fs::Permissions::from_mode(0o600))
-            .map_err(|source| Error::WriteFile {
-                path: path.to_path_buf(),
-                source,
-            })?;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
     }
-
-    file.write_all(content.as_bytes())
-        .map_err(|source| Error::WriteFile {
-            path: path.to_path_buf(),
-            source,
-        })
+    file.write_all(content.as_bytes())?;
+    file.sync_all()
 }
 
 /// Shared implementation for application and standalone `generate-auth-key`
