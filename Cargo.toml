@@ -1,0 +1,27 @@
+[package]
+name = "flexaccess-keys"
+version = "0.0.1"
+edition = "2024"
+description = "Shared Ed25519 authentication key format and tooling for FlexAccess applications"
+repository = "https://github.com/flexaccessdev/flexaccess-keys"
+
+[features]
+default = []
+commands = ["dep:serde_json"]
+cli = ["commands", "dep:clap"]
+fast = ["ed25519-dalek/fast"]
+
+[dependencies]
+base64 = { version = "0.22", default-features = false, features = ["alloc"] }
+clap = { version = "4", default-features = false, features = ["derive", "std", "help", "usage"], optional = true }
+ed25519-dalek = { version = "3", default-features = false, features = ["zeroize"] }
+getrandom = "0.4"
+serde_json = { version = "1", default-features = false, features = ["std"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "flexaccess-keys"
+path = "src/main.rs"
+required-features = ["cli"]
