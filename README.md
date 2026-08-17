@@ -46,21 +46,69 @@ ed25519-pub:<public key> build server
 
 Private key files created with `--output` use mode `0600` on Unix.
 
-## CLI
+## Installation
 
-Run without installing:
+You only need the binary in your `PATH`; no runtime dependencies or package
+managers are required.
+
+**Linux & macOS:**
+
+```bash
+curl -sSL https://flexaccessdev.github.io/flexaccess-keys/install.sh | bash
+```
+
+**Windows:**
+
+```powershell
+irm https://flexaccessdev.github.io/flexaccess-keys/install.ps1 | iex
+```
+
+This installs `flexaccess-keys`.
+
+<details>
+<summary>Advanced installation options</summary>
+
+Install a specific release:
+
+```bash
+# Linux/macOS
+curl -sSL https://flexaccessdev.github.io/flexaccess-keys/install.sh | bash -s v0.0.2
+```
+
+```powershell
+# Windows
+& ([scriptblock]::Create((irm https://flexaccessdev.github.io/flexaccess-keys/install.ps1))) v0.0.2
+```
+
+By default the installer pulls the latest stable release. Use `--prerelease`
+on Linux/macOS or `-PreRelease` on Windows to install the newest prerelease.
+
+> **Note:** Prerelease artifacts may not include Windows binaries. If one is
+> unavailable, use a stable release or build from source.
+
+</details>
+
+### From source
+
+Install directly from GitHub:
+
+```bash
+cargo install --git https://github.com/flexaccessdev/flexaccess-keys --features cli \
+  flexaccess-keys
+```
+
+Or run from a local checkout without installing:
 
 ```bash
 cargo run --release --features cli -- generate-auth-key "alice laptop" > client.key
 cargo run --release --features cli -- show-auth-key --private-key-file client.key
 ```
 
-Or install the standalone binary:
+## CLI
+
+Generate a private key and derive its authorized-key entry:
 
 ```bash
-cargo install --git https://github.com/flexaccessdev/flexaccess-keys --features cli \
-  flexaccess-keys
-
 flexaccess-keys generate-auth-key "alice laptop" > client.key
 flexaccess-keys show-auth-key --private-key-file client.key > authorized_keys
 
