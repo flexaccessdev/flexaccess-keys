@@ -3,6 +3,7 @@ name = "flexaccess-keys"
 version = "0.0.2"
 edition = "2024"
 description = "Shared Ed25519 authentication key format and tooling for FlexAccess applications"
+license = "MIT"
 repository = "https://github.com/flexaccessdev/flexaccess-keys"
 
 [features]
