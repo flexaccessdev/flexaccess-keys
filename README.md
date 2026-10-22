@@ -179,3 +179,7 @@ the default library feature set remains empty.
   transcript.
 - [flextunnel](https://github.com/flexaccessdev/flextunnel) is the planned
   phase-2 consumer.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
