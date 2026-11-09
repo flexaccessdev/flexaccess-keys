@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.9"
-# dependencies = ["cryptography>=3.0"]
+# requires-python = ">=3.11"
+# dependencies = ["cryptography>=44.0.1"]
 # ///
-"""Generate and inspect FlexAccess Ed25519 authentication keys with Python.
+"""Generate and inspect FlexAccess Ed25519 authentication keys with Python 3.11
+or newer (any non-end-of-life release).
 
 Usage:
   uv run flexaccess-keys.py generate-auth-key [COMMENT] [-o FILE [--force]] [--json]
@@ -17,6 +18,19 @@ Commands, flags, and output match the flexaccess-keys binary; see
 https://github.com/flexaccessdev/flexaccess-keys/blob/main/docs/key-format.md
 """
 
+import sys
+
+# The oldest Python release line that still receives security updates. Checked
+# before anything else so older interpreters get a clear message.
+MIN_PYTHON = (3, 11)
+if sys.version_info < MIN_PYTHON:
+    sys.exit(
+        "Error: Python {}.{} or newer is required (found {}); older releases are "
+        "end-of-life and no longer receive security updates".format(
+            *MIN_PYTHON, sys.version.split()[0]
+        )
+    )
+
 import argparse
 import base64
 import datetime
@@ -24,7 +38,6 @@ import json
 import os
 import re
 import secrets
-import sys
 
 try:
     from cryptography.hazmat.primitives import serialization
@@ -124,7 +137,7 @@ def generate_auth_key(args):
         print(dump_json({"authorized_key": entry, "private_key": private_token}))
         return
 
-    created = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    created = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     key_file = (
         "# Ed25519 authentication key\n"
         f"# Created: {created}\n"

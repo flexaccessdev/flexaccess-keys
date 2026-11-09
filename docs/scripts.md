@@ -6,8 +6,8 @@ single file and a full alternative to the `flexaccess-keys` binary:
 
 | Script | Requires | Run with |
 | --- | --- | --- |
-| [`flexaccess-keys.mjs`](../scripts/flexaccess-keys.mjs) | Node.js 18+ (built-in `node:crypto` only) | `node flexaccess-keys.mjs` |
-| [`flexaccess-keys.py`](../scripts/flexaccess-keys.py) | Python 3.9+ and [`cryptography`](https://pypi.org/project/cryptography/) | `uv run flexaccess-keys.py` |
+| [`flexaccess-keys.mjs`](../scripts/flexaccess-keys.mjs) | Node.js 22+ (built-in `node:crypto` only) | `node flexaccess-keys.mjs` |
+| [`flexaccess-keys.py`](../scripts/flexaccess-keys.py) | Python 3.11+ and [`cryptography`](https://pypi.org/project/cryptography/) | `uv run flexaccess-keys.py` |
 
 Both have the binary's commands and flags, and they write the same
 key-file format:
@@ -134,7 +134,8 @@ echo "ed25519-pub:$pub"
 The built-in `node:crypto` module supports Ed25519 with no third-party
 packages, and its JWK export fields (`d` for the seed, `x` for
 the public key) are already unpadded URL-safe base64 — the token encoding.
-Requires Node 16 or newer.
+Use Node.js 22 or newer, the oldest release line that still receives security
+updates; this matches the `flexaccess-keys.mjs` script.
 
 #### Generate a key pair
 
@@ -173,7 +174,8 @@ console.log("ed25519-pub:" + publicJwk.x);
 
 ### Python
 
-Requires Python 3.9 or newer and the
+Requires Python 3.11 or newer, the oldest release line that still receives
+security updates, and the
 [`cryptography`](https://pypi.org/project/cryptography/) package; the standard
 library alone cannot do Ed25519. With [uv](https://docs.astral.sh/uv/)
 the scripts below run in a throwaway environment without touching the system

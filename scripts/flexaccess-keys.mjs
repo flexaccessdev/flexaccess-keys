@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // flexaccess-keys.mjs: generate and inspect FlexAccess Ed25519 authentication
-// keys with Node.js 18 or newer. No packages to install.
+// keys with Node.js 22 or newer (any non-end-of-life release). No packages to
+// install.
 //
 // Usage:
 //   node flexaccess-keys.mjs generate-auth-key [COMMENT] [-o FILE [--force]] [--json]
@@ -15,19 +16,13 @@ import {
   generateKeyPairSync,
   randomBytes,
 } from "node:crypto";
-import {
-  closeSync,
-  fsyncSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeSync,
-} from "node:fs";
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
+
+// The oldest Node.js release line that still receives security updates.
+const MIN_NODE_MAJOR = 22;
 
 const PRIVATE_PREFIX = "ed25519-sec:";
 const PUBLIC_PREFIX = "ed25519-pub:";
@@ -35,7 +30,7 @@ const PKCS8_HEADER = Buffer.from("302e020100300506032b657004220420", "hex");
 // 32 bytes encode to 43 characters; the last one carries two zero bits.
 const KEY_B64URL = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 
-const USAGE = `Manage shared FlexAccess Ed25519 authentication keys (requires Node.js 18+)
+const USAGE = `Manage shared FlexAccess Ed25519 authentication keys (requires Node.js 22+)
 
 Usage:
   flexaccess-keys.mjs generate-auth-key [COMMENT] [-o FILE [--force]] [--json]
@@ -82,14 +77,10 @@ function rfc3339Utc(date) {
   return date.toISOString().replace(/\.\d+Z$/, "Z");
 }
 
-function writeAndSync(path, content, mode) {
-  const fd = openSync(path, "wx", mode);
-  try {
-    writeSync(fd, content);
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
+// Create a new file (never an existing one) and flush it to disk before
+// returning, so a crash cannot leave a truncated key behind.
+function writeNewFile(path, content) {
+  writeFileSync(path, content, { flag: "wx", mode: 0o600, flush: true });
 }
 
 // Created with mode 0600, never overwritten unless forced; forced overwrites
@@ -104,7 +95,7 @@ function writePrivateKeyFile(path, content, force) {
   }
   if (!force) {
     try {
-      writeAndSync(path, content, 0o600);
+      writeNewFile(path, content);
     } catch (error) {
       if (error.code === "EEXIST") {
         throw new CliError(`File already exists: ${path}. Use --force to overwrite.`);
@@ -118,7 +109,7 @@ function writePrivateKeyFile(path, content, force) {
     `.${basename(path)}.${randomBytes(8).toString("base64url")}.tmp`,
   );
   try {
-    writeAndSync(temp, content, 0o600);
+    writeNewFile(temp, content);
     renameSync(temp, path);
   } catch (error) {
     try {
@@ -249,17 +240,29 @@ function main(argv) {
       return void process.stdout.write(USAGE);
     case undefined:
       process.stderr.write(USAGE);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     default:
       process.stderr.write(USAGE);
       throw new CliError(`unrecognized subcommand '${command}'`);
   }
 }
 
-try {
-  main(process.argv.slice(2));
-} catch (error) {
-  if (!(error instanceof CliError)) throw error;
-  console.error(`Error: ${error.message}`);
-  process.exit(1);
+// Set exitCode rather than calling process.exit() so buffered stdout/stderr
+// (for example when piped) is always written out before Node exits.
+const nodeMajor = Number(process.versions.node.split(".")[0]);
+if (nodeMajor < MIN_NODE_MAJOR) {
+  console.error(
+    `Error: Node.js ${MIN_NODE_MAJOR} or newer is required (found ${process.version}); ` +
+      "older releases are end-of-life and no longer receive security updates",
+  );
+  process.exitCode = 1;
+} else {
+  try {
+    main(process.argv.slice(2));
+  } catch (error) {
+    if (!(error instanceof CliError)) throw error;
+    console.error(`Error: ${error.message}`);
+    process.exitCode = 1;
+  }
 }

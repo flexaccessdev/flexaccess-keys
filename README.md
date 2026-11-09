@@ -56,8 +56,8 @@ made with one works with all the others.
 
 | Tool | Requires | Command |
 | --- | --- | --- |
-| [`flexaccess-keys.mjs`](scripts/flexaccess-keys.mjs) | Node.js 18+, no packages | `node flexaccess-keys.mjs` |
-| [`flexaccess-keys.py`](scripts/flexaccess-keys.py) | Python 3.9+ and `cryptography` | `uv run flexaccess-keys.py` |
+| [`flexaccess-keys.mjs`](scripts/flexaccess-keys.mjs) | Node.js 22+, no packages | `node flexaccess-keys.mjs` |
+| [`flexaccess-keys.py`](scripts/flexaccess-keys.py) | Python 3.11+ and `cryptography` | `uv run flexaccess-keys.py` |
 | `flexaccess-keys` binary | nothing | `flexaccess-keys` |
 
 ### Scripts
