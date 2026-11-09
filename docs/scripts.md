@@ -1,19 +1,85 @@
-# Fallback key generation with standard tools
+# Generating keys with scripts
 
-If the `flexaccess-keys` binary is unavailable or not working, the same
-`ed25519-sec:` / `ed25519-pub:` tokens can be produced with OpenSSL or Python.
-Both tokens are exactly 32 raw bytes encoded as unpadded URL-safe base64
-(`+` → `-`, `/` → `_`, trailing `=` removed); see the README for the full
-format.
+You can generate FlexAccess keys without installing anything. The
+[`scripts/`](../scripts) directory has two standalone scripts. Each one is a
+single file and a full alternative to the `flexaccess-keys` binary:
 
-Every recipe below produces byte-identical output to the binary: a key
-generated one way can be read, derived, and verified by any of the others.
+| Script | Requires | Run with |
+| --- | --- | --- |
+| [`flexaccess-keys.mjs`](../scripts/flexaccess-keys.mjs) | Node.js 18+ (built-in `node:crypto` only) | `node flexaccess-keys.mjs` |
+| [`flexaccess-keys.py`](../scripts/flexaccess-keys.py) | Python 3.9+ and [`cryptography`](https://pypi.org/project/cryptography/) | `uv run flexaccess-keys.py` |
 
-## OpenSSL
+Both have the binary's commands and flags, and they write the same
+key-file format:
+
+```text
+generate-auth-key [COMMENT] [-o FILE [--force]] [--json]
+show-auth-key --private-key-file FILE [-c COMMENT] [--json]
+```
+
+So a key made by either script can be read by the binary, by the Rust library,
+and by the other script. The same goes the other way.
+
+## Getting a script
+
+Each script is published next to the binary installers:
+
+```bash
+curl -fsSLO https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.mjs
+curl -fsSLO https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.py
+```
+
+On Windows PowerShell:
+
+```powershell
+Invoke-WebRequest https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.mjs -OutFile flexaccess-keys.mjs
+```
+
+You can also copy the files from a checkout of this repository. The scripts are
+short; read the one you use before generating keys with it.
+
+## Usage
+
+Write a private key file with mode `0600` and append its authorized-key entry:
+
+```bash
+node flexaccess-keys.mjs generate-auth-key "alice laptop" --output client.key
+node flexaccess-keys.mjs show-auth-key --private-key-file client.key >> authorized_keys
+```
+
+Swap `node flexaccess-keys.mjs` for `uv run flexaccess-keys.py`; nothing else
+changes. Without `--output`, the key file goes to stdout. `--output` refuses to
+overwrite an existing file unless you pass `--force`, which replaces the file
+atomically. `--json` prints machine-readable output:
+
+```bash
+node flexaccess-keys.mjs generate-auth-key "build server" --json
+# {"authorized_key":"ed25519-pub:... build server","private_key":"ed25519-sec:..."}
+```
+
+Notes per script:
+
+- **Node.js:** needs no packages and runs on any platform Node supports,
+  including Windows.
+- **Python:** the script declares its dependency inline
+  ([PEP 723](https://peps.python.org/pep-0723/)), so `uv run` installs
+  `cryptography` into a throwaway environment. Without
+  [uv](https://docs.astral.sh/uv/), `pip install cryptography` and run
+  `python3 flexaccess-keys.py`.
+
+## Doing it by hand
+
+Each recipe below makes the same tokens using only the underlying tools. Use
+one when you are building key generation into your own tooling and would rather
+not ship a script. Both tokens are exactly 32 raw bytes encoded as unpadded
+URL-safe base64 (`+` → `-`, `/` → `_`, trailing `=` removed); see
+[key-format.md](key-format.md) for the full format.
+
+### OpenSSL
 
 Requires OpenSSL 1.1.1 or newer (Ed25519 support).
 
-### Generate a key pair
+#### Generate a key pair
 
 ```bash
 umask 077  # every file below, including client.pem, is created private
@@ -44,7 +110,7 @@ redirection overwrites an existing file, so pick a path that is not in use:
 shred -u client.pem 2>/dev/null || rm -f client.pem
 ```
 
-### Derive the public token from an existing private token
+#### Derive the public token from an existing private token
 
 The equivalent of `show-auth-key`: rebuild the PKCS#8 DER by prepending the
 fixed 16-byte Ed25519 header to the decoded seed, then let OpenSSL derive the
@@ -63,14 +129,14 @@ pub=$(
 echo "ed25519-pub:$pub"
 ```
 
-## Node.js
+### Node.js
 
-The easiest fallback: the built-in `node:crypto` module supports Ed25519 with
-no third-party packages, and its JWK export fields (`d` for the seed, `x` for
+The built-in `node:crypto` module supports Ed25519 with no third-party
+packages, and its JWK export fields (`d` for the seed, `x` for
 the public key) are already unpadded URL-safe base64 — the token encoding.
 Requires Node 16 or newer.
 
-### Generate a key pair
+#### Generate a key pair
 
 ```bash
 node -e '
@@ -82,7 +148,7 @@ console.log("ed25519-pub:" + jwk.x);
 '
 ```
 
-### Derive the public token from an existing private token
+#### Derive the public token from an existing private token
 
 As with OpenSSL, rebuild the PKCS#8 DER around the decoded seed and let the
 platform derive the public half:
@@ -105,7 +171,7 @@ const publicJwk = createPublicKey(privateKey).export({ format: "jwk" });
 console.log("ed25519-pub:" + publicJwk.x);
 ```
 
-## Python
+### Python
 
 Requires Python 3.9 or newer and the
 [`cryptography`](https://pypi.org/project/cryptography/) package; the standard
@@ -125,7 +191,7 @@ uv pip install cryptography
 uv run generate.py
 ```
 
-### Generate a key pair
+#### Generate a key pair
 
 Save as `generate.py`:
 
@@ -151,7 +217,7 @@ print(token("ed25519-sec:", seed))
 print(token("ed25519-pub:", public))
 ```
 
-### Derive the public token from an existing private token
+#### Derive the public token from an existing private token
 
 Save as `derive.py` and run the same way:
 
@@ -176,12 +242,13 @@ print("ed25519-pub:" + base64.urlsafe_b64encode(public).decode().rstrip("="))
 
 ## Cross-checking
 
-When the binary works again, confirm a fallback-generated key matches:
+Any tool can confirm a key made by another. For example:
 
 ```bash
+node flexaccess-keys.mjs show-auth-key --private-key-file client.key
 flexaccess-keys show-auth-key --private-key-file client.key
 ```
 
-The printed entry starts with the `ed25519-pub:` token, which must equal the
-one computed above; a comment from the key file's `# Public key:` header, if
-present, follows it.
+Every tool prints the same entry for the same key file. The entry starts with
+the `ed25519-pub:` token, followed by the comment from the key file's
+`# Public key:` header, if there is one.
