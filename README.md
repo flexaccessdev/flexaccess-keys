@@ -50,47 +50,15 @@ Private key files created with `--output` use mode `0600` on Unix.
 
 ## Generating keys
 
-Use whichever tool you already have. The standalone scripts and the
-`flexaccess-keys` binary have the same commands, flags, and output, so a key
-made with one works with all the others.
+Use whichever tool you already have. The `flexaccess-keys` binary and the
+standalone scripts have the same commands, flags, and output, so a key made
+with one works with all the others.
 
 | Tool | Requires | Command |
 | --- | --- | --- |
+| `flexaccess-keys` binary | nothing | `flexaccess-keys` |
 | [`flexaccess-keys.mjs`](scripts/flexaccess-keys.mjs) | Node.js 22, 24, or 26+, no packages | `node flexaccess-keys.mjs` |
 | [`flexaccess-keys.py`](scripts/flexaccess-keys.py) | Python 3.11+ and `cryptography` | `uv run flexaccess-keys.py` |
-| `flexaccess-keys` binary | nothing | `flexaccess-keys` |
-
-### Scripts
-
-Each script is one self-contained file you can read before running. There is
-nothing to install: download the one that fits your machine and run it.
-
-**Node.js:**
-
-```bash
-curl -fsSLO https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.mjs
-node flexaccess-keys.mjs generate-auth-key "alice laptop" --output client.key
-node flexaccess-keys.mjs show-auth-key --private-key-file client.key > authorized_keys
-```
-
-**Python:**
-
-```bash
-curl -fsSLO https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.py
-uv run flexaccess-keys.py generate-auth-key "alice laptop" --output client.key
-uv run flexaccess-keys.py show-auth-key --private-key-file client.key > authorized_keys
-```
-
-[uv](https://docs.astral.sh/uv/) reads the dependency declared in the script and
-installs `cryptography` in a throwaway environment. Without uv, run
-`pip install 'cryptography>=50.0.0'` and then use `python3 flexaccess-keys.py`.
-
-Both scripts run on Linux, macOS, and Windows. On Windows, use
-`Invoke-WebRequest -OutFile` in place of `curl -fsSLO` if `curl` is not
-available.
-
-See [docs/scripts.md](docs/scripts.md) for how the scripts work and for
-copy-paste recipes that build the same keys inside your own tooling.
 
 ### Binary
 
@@ -147,6 +115,38 @@ cargo run --release --features cli -- show-auth-key --private-key-file client.ke
 ```
 
 </details>
+
+### Scripts
+
+Each script is one self-contained file you can read before running. There is
+nothing to install: download the one that fits your machine and run it.
+
+**Node.js:**
+
+```bash
+curl -fsSLO https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.mjs
+node flexaccess-keys.mjs generate-auth-key "alice laptop" --output client.key
+node flexaccess-keys.mjs show-auth-key --private-key-file client.key > authorized_keys
+```
+
+**Python:**
+
+```bash
+curl -fsSLO https://flexaccessdev.github.io/flexaccess-keys/flexaccess-keys.py
+uv run flexaccess-keys.py generate-auth-key "alice laptop" --output client.key
+uv run flexaccess-keys.py show-auth-key --private-key-file client.key > authorized_keys
+```
+
+[uv](https://docs.astral.sh/uv/) reads the dependency declared in the script and
+installs `cryptography` in a throwaway environment. Without uv, run
+`pip install 'cryptography>=50.0.0'` and then use `python3 flexaccess-keys.py`.
+
+Both scripts run on Linux, macOS, and Windows. On Windows, use
+`Invoke-WebRequest -OutFile` in place of `curl -fsSLO` if `curl` is not
+available.
+
+See [docs/scripts.md](docs/scripts.md) for how the scripts work and for
+copy-paste recipes that build the same keys inside your own tooling.
 
 ## Commands
 
