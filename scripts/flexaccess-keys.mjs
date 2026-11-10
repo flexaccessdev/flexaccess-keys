@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // flexaccess-keys.mjs: generate and inspect FlexAccess Ed25519 authentication
-// keys with Node.js 22 or newer (any non-end-of-life release). No packages to
-// install.
+// keys with Node.js 22, 24, or 26 or newer (any non-end-of-life release). No
+// packages to install.
 //
 // Usage:
 //   node flexaccess-keys.mjs generate-auth-key [COMMENT] [-o FILE [--force]] [--json]
@@ -16,13 +16,22 @@ import {
   generateKeyPairSync,
   randomBytes,
 } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 
-// The oldest Node.js release line that still receives security updates.
+// The oldest Node.js release line that still receives security updates, and
+// the short-lived odd-numbered lines after it that are already end-of-life.
 const MIN_NODE_MAJOR = 22;
+const EOL_NODE_MAJORS = new Set([23, 25]);
 
 const PRIVATE_PREFIX = "ed25519-sec:";
 const PUBLIC_PREFIX = "ed25519-pub:";
@@ -30,7 +39,7 @@ const PKCS8_HEADER = Buffer.from("302e020100300506032b657004220420", "hex");
 // 32 bytes encode to 43 characters; the last one carries two zero bits.
 const KEY_B64URL = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 
-const USAGE = `Manage shared FlexAccess Ed25519 authentication keys (requires Node.js 22+)
+const USAGE = `Manage shared FlexAccess Ed25519 authentication keys (requires Node.js 22, 24, or 26+)
 
 Usage:
   flexaccess-keys.mjs generate-auth-key [COMMENT] [-o FILE [--force]] [--json]
@@ -50,6 +59,11 @@ show-auth-key options:
 
 class CliError extends Error {}
 
+// String#trim also strips U+FEFF (a byte-order mark), which the reference
+// parser does not treat as whitespace; trim only real whitespace.
+const trim = (text) => text.replace(/^[^\S\uFEFF]+|[^\S\uFEFF]+$/g, "");
+const trimStart = (text) => text.replace(/^[^\S\uFEFF]+/, "");
+
 function expandTilde(path) {
   if (path === "~") return homedir();
   if (path.startsWith("~/")) return join(homedir(), path.slice(2));
@@ -60,7 +74,7 @@ function validateComment(comment) {
   if (/[\r\n]/.test(comment)) {
     throw new CliError("Authorized-key comment must not contain line breaks");
   }
-  return comment.trim();
+  return trim(comment);
 }
 
 function authorizedKey(publicB64, comment) {
@@ -78,9 +92,11 @@ function rfc3339Utc(date) {
 }
 
 // Create a new file (never an existing one) and flush it to disk before
-// returning, so a crash cannot leave a truncated key behind.
+// returning, so a crash cannot leave a truncated key behind. The creation mode
+// is filtered by the umask, so set 0600 explicitly afterwards.
 function writeNewFile(path, content) {
   writeFileSync(path, content, { flag: "wx", mode: 0o600, flush: true });
+  chmodSync(path, 0o600);
 }
 
 // Created with mode 0600, never overwritten unless forced; forced overwrites
@@ -181,11 +197,18 @@ function showAuthKey(args) {
   const path = expandTilde(values["private-key-file"]);
   let content;
   try {
-    content = readFileSync(path, "utf8");
+    content = readFileSync(path);
   } catch (error) {
     throw new CliError(`Failed to read private key file ${path}: ${error.message}`);
   }
-  const lines = content.split("\n").map((line) => line.trim());
+  try {
+    content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content);
+  } catch {
+    throw new CliError(
+      `Failed to read private key file ${path}: stream did not contain valid UTF-8`,
+    );
+  }
+  const lines = content.split("\n").map(trim);
 
   const keyLines = lines.filter((line) => line && !line.startsWith("#"));
   if (keyLines.length === 0) throw new CliError(`No authentication private key found in ${path}`);
@@ -215,9 +238,9 @@ function showAuthKey(args) {
     const token = PUBLIC_PREFIX + publicB64;
     for (const line of lines) {
       if (!line.startsWith("# Public key:")) continue;
-      const rest = line.slice("# Public key:".length).trimStart();
+      const rest = trimStart(line.slice("# Public key:".length));
       if (rest.startsWith(token) && /^\s/.test(rest.slice(token.length))) {
-        comment = rest.slice(token.length).trim();
+        comment = validateComment(rest.slice(token.length));
         break;
       }
     }
@@ -251,10 +274,10 @@ function main(argv) {
 // Set exitCode rather than calling process.exit() so buffered stdout/stderr
 // (for example when piped) is always written out before Node exits.
 const nodeMajor = Number(process.versions.node.split(".")[0]);
-if (nodeMajor < MIN_NODE_MAJOR) {
+if (nodeMajor < MIN_NODE_MAJOR || EOL_NODE_MAJORS.has(nodeMajor)) {
   console.error(
-    `Error: Node.js ${MIN_NODE_MAJOR} or newer is required (found ${process.version}); ` +
-      "older releases are end-of-life and no longer receive security updates",
+    `Error: Node.js ${process.version} is end-of-life and no longer receives security ` +
+      `updates; use Node.js ${MIN_NODE_MAJOR}, 24, or 26 or newer`,
   );
   process.exitCode = 1;
 } else {

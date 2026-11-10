@@ -6,7 +6,7 @@ single file and a full alternative to the `flexaccess-keys` binary:
 
 | Script | Requires | Run with |
 | --- | --- | --- |
-| [`flexaccess-keys.mjs`](../scripts/flexaccess-keys.mjs) | Node.js 22+ (built-in `node:crypto` only) | `node flexaccess-keys.mjs` |
+| [`flexaccess-keys.mjs`](../scripts/flexaccess-keys.mjs) | Node.js 22, 24, or 26+ (built-in `node:crypto` only) | `node flexaccess-keys.mjs` |
 | [`flexaccess-keys.py`](../scripts/flexaccess-keys.py) | Python 3.11+ and [`cryptography`](https://pypi.org/project/cryptography/) | `uv run flexaccess-keys.py` |
 
 Both have the binary's commands and flags, and they write the same
@@ -64,7 +64,7 @@ Notes per script:
 - **Python:** the script declares its dependency inline
   ([PEP 723](https://peps.python.org/pep-0723/)), so `uv run` installs
   `cryptography` into a throwaway environment. Without
-  [uv](https://docs.astral.sh/uv/), `pip install cryptography` and run
+  [uv](https://docs.astral.sh/uv/), `pip install 'cryptography>=50.0.0'` and run
   `python3 flexaccess-keys.py`.
 
 ## Doing it by hand
@@ -134,8 +134,8 @@ echo "ed25519-pub:$pub"
 The built-in `node:crypto` module supports Ed25519 with no third-party
 packages, and its JWK export fields (`d` for the seed, `x` for
 the public key) are already unpadded URL-safe base64 — the token encoding.
-Use Node.js 22 or newer, the oldest release line that still receives security
-updates; this matches the `flexaccess-keys.mjs` script.
+Use a Node.js release that still receives security updates (22, 24, or 26 or
+newer; 23 and 25 are end-of-life), as the `flexaccess-keys.mjs` script requires.
 
 #### Generate a key pair
 
@@ -182,14 +182,14 @@ the scripts below run in a throwaway environment without touching the system
 Python:
 
 ```bash
-uv run --with cryptography generate.py
+uv run --with 'cryptography>=50.0.0' generate.py
 ```
 
 Or with an explicit virtual environment:
 
 ```bash
 uv venv
-uv pip install cryptography
+uv pip install 'cryptography>=50.0.0'
 uv run generate.py
 ```
 

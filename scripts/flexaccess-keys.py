@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["cryptography>=44.0.1"]
+# dependencies = ["cryptography>=50.0.0"]
 # ///
 """Generate and inspect FlexAccess Ed25519 authentication keys with Python 3.11
 or newer (any non-end-of-life release).
@@ -12,7 +12,7 @@ Usage:
 
 `uv run` installs the `cryptography` dependency declared above into a
 throwaway environment. Without uv, run it with `python3` after
-`pip install cryptography`.
+`pip install 'cryptography>=50.0.0'`.
 
 Commands, flags, and output match the flexaccess-keys binary; see
 https://github.com/flexaccessdev/flexaccess-keys/blob/main/docs/key-format.md
@@ -34,19 +34,39 @@ if sys.version_info < MIN_PYTHON:
 import argparse
 import base64
 import datetime
+import importlib.metadata
 import json
 import os
 import re
 import secrets
 
-try:
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-except ImportError:
+# Keep in sync with the inline metadata above. Every cryptography release
+# before this one has a published security advisory. `uv run` enforces the
+# floor itself; this check covers running the script with a plain `python3`.
+MIN_CRYPTOGRAPHY = (50, 0, 0)
+INSTALL_HINT = "run this script with `uv run`, or `pip install 'cryptography>=50.0.0'` first"
+
+
+def installed_version(distribution):
+    try:
+        version = importlib.metadata.version(distribution)
+    except importlib.metadata.PackageNotFoundError:
+        return None, None
+    parts = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", version)
+    return version, tuple(int(part or 0) for part in parts.groups()) if parts else ()
+
+
+cryptography_version, cryptography_parts = installed_version("cryptography")
+if cryptography_version is None:
+    sys.exit(f"Error: the 'cryptography' package is required; {INSTALL_HINT}")
+if cryptography_parts < MIN_CRYPTOGRAPHY:
     sys.exit(
-        "Error: the 'cryptography' package is required; run this script with "
-        "`uv run`, or `pip install cryptography` first"
+        f"Error: cryptography {cryptography_version} has known security "
+        f"vulnerabilities; {INSTALL_HINT}"
     )
+
+from cryptography.hazmat.primitives import serialization  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
 
 PRIVATE_PREFIX = "ed25519-sec:"
 PUBLIC_PREFIX = "ed25519-pub:"
@@ -87,6 +107,9 @@ def dump_json(value):
 
 def write_and_sync(path, content):
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    if hasattr(os, "fchmod"):
+        # The creation mode is filtered by the umask; set 0600 explicitly.
+        os.fchmod(fd, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
         file.write(content)
         file.flush()
@@ -153,10 +176,19 @@ def generate_auth_key(args):
 def show_auth_key(args):
     path = os.path.expanduser(args.private_key_file)
     try:
-        with open(path, encoding="utf-8") as file:
-            lines = [line.strip() for line in file.read().split("\n")]
+        with open(path, "rb") as file:
+            raw = file.read()
     except OSError as error:
         raise CliError(f"Failed to read private key file {path}: {error.strerror}")
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise CliError(
+            f"Failed to read private key file {path}: stream did not contain valid UTF-8"
+        )
+    # Split on LF only (like the reference parser) so a stray CR stays inside
+    # its line and is rejected, rather than silently starting a new line.
+    lines = [line.strip() for line in content.split("\n")]
 
     key_lines = [line for line in lines if line and not line.startswith("#")]
     if not key_lines:
@@ -190,7 +222,7 @@ def show_auth_key(args):
             rest = line[len(PUBLIC_HEADER):].lstrip()
             after = rest[len(token):]
             if rest.startswith(token) and after[:1].isspace():
-                comment = after.strip()
+                comment = validate_comment(after)
                 break
 
     entry = authorized_key(public, comment)

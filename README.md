@@ -56,7 +56,7 @@ made with one works with all the others.
 
 | Tool | Requires | Command |
 | --- | --- | --- |
-| [`flexaccess-keys.mjs`](scripts/flexaccess-keys.mjs) | Node.js 22+, no packages | `node flexaccess-keys.mjs` |
+| [`flexaccess-keys.mjs`](scripts/flexaccess-keys.mjs) | Node.js 22, 24, or 26+, no packages | `node flexaccess-keys.mjs` |
 | [`flexaccess-keys.py`](scripts/flexaccess-keys.py) | Python 3.11+ and `cryptography` | `uv run flexaccess-keys.py` |
 | `flexaccess-keys` binary | nothing | `flexaccess-keys` |
 
@@ -83,7 +83,7 @@ uv run flexaccess-keys.py show-auth-key --private-key-file client.key > authoriz
 
 [uv](https://docs.astral.sh/uv/) reads the dependency declared in the script and
 installs `cryptography` in a throwaway environment. Without uv, run
-`pip install cryptography` and then use `python3 flexaccess-keys.py`.
+`pip install 'cryptography>=50.0.0'` and then use `python3 flexaccess-keys.py`.
 
 Both scripts run on Linux, macOS, and Windows. On Windows, use
 `Invoke-WebRequest -OutFile` in place of `curl -fsSLO` if `curl` is not
