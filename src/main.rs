@@ -56,7 +56,10 @@ fn expand_tilde(path: PathBuf) -> PathBuf {
     };
     match path.to_str() {
         Some("~") => home().unwrap_or(path),
-        Some(text) => match text.strip_prefix("~/").and_then(|rest| Some(home()?.join(rest))) {
+        Some(text) => match text
+            .strip_prefix("~/")
+            .and_then(|rest| Some(home()?.join(rest)))
+        {
             Some(expanded) => expanded,
             None => path,
         },

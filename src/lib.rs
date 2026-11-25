@@ -49,7 +49,11 @@ impl fmt::Display for Error {
         match self {
             Self::Invalid(message) => formatter.write_str(message),
             Self::ReadFile { kind, path, source } => {
-                write!(formatter, "Failed to read {kind} file {}: {source}", path.display())
+                write!(
+                    formatter,
+                    "Failed to read {kind} file {}: {source}",
+                    path.display()
+                )
             }
             Self::WriteFile { path, source } => write!(
                 formatter,
@@ -117,13 +121,11 @@ impl FromStr for PublicKey {
 
     fn from_str(token: &str) -> Result<Self> {
         let encoded = token.strip_prefix(PUBLIC_KEY_PREFIX).ok_or_else(|| {
-            Error::Invalid(format!(
-                "Public key must start with '{PUBLIC_KEY_PREFIX}'"
-            ))
+            Error::Invalid(format!("Public key must start with '{PUBLIC_KEY_PREFIX}'"))
         })?;
-        let bytes = BASE64
-            .decode(encoded)
-            .map_err(|error| Error::Invalid(format!("Public key is not valid base64url: {error}")))?;
+        let bytes = BASE64.decode(encoded).map_err(|error| {
+            Error::Invalid(format!("Public key is not valid base64url: {error}"))
+        })?;
         let bytes: KeyBytes = bytes.try_into().map_err(|bytes: Vec<u8>| {
             Error::Invalid(format!(
                 "Ed25519 public key must decode to {KEY_LENGTH} bytes, got {}",
@@ -154,7 +156,9 @@ impl PrivateKey {
     pub fn generate() -> Result<Self> {
         let mut seed = [0; KEY_LENGTH];
         getrandom::fill(&mut seed).map_err(|error| {
-            Error::Invalid(format!("Failed to generate an Ed25519 private key: {error}"))
+            Error::Invalid(format!(
+                "Failed to generate an Ed25519 private key: {error}"
+            ))
         })?;
         Ok(Self::from_seed(seed))
     }
@@ -316,9 +320,7 @@ pub fn parse_private_key(content: &str, origin: &str) -> Result<PrivateKey> {
         private_key_line = Some(line);
     }
     let private_key_line = private_key_line.ok_or_else(|| {
-        Error::Invalid(format!(
-            "No authentication private key found in {origin}"
-        ))
+        Error::Invalid(format!("No authentication private key found in {origin}"))
     })?;
     PrivateKey::from_str(private_key_line).map_err(|error| {
         Error::Invalid(format!(
@@ -424,7 +426,10 @@ pub fn write_private_key_file(path: &Path, content: &str, force: bool) -> Result
         source,
     };
 
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         std::fs::create_dir_all(parent).map_err(write_error)?;
     }
 
@@ -580,8 +585,14 @@ mod tests {
         let private_token = private_key.to_token();
         let public_token = private_key.public_key().to_token();
 
-        assert_eq!(PrivateKey::from_str(&private_token).unwrap().to_token(), private_token);
-        assert_eq!(PublicKey::from_str(&public_token).unwrap().to_token(), public_token);
+        assert_eq!(
+            PrivateKey::from_str(&private_token).unwrap().to_token(),
+            private_token
+        );
+        assert_eq!(
+            PublicKey::from_str(&public_token).unwrap().to_token(),
+            public_token
+        );
     }
 
     #[test]
@@ -589,24 +600,37 @@ mod tests {
         let private_key = PrivateKey::from_seed([42; KEY_LENGTH]);
         let signature = private_key.sign(b"app-domain\0message");
 
-        assert!(private_key.public_key().verify(b"app-domain\0message", &signature));
-        assert!(!private_key.public_key().verify(b"other-domain\0message", &signature));
-        assert!(!private_key.public_key().verify(b"app-domain\0message", &signature[..63]));
+        assert!(
+            private_key
+                .public_key()
+                .verify(b"app-domain\0message", &signature)
+        );
+        assert!(
+            !private_key
+                .public_key()
+                .verify(b"other-domain\0message", &signature)
+        );
+        assert!(
+            !private_key
+                .public_key()
+                .verify(b"app-domain\0message", &signature[..63])
+        );
     }
 
     #[test]
     fn key_file_and_authorized_keys_round_trip() {
         let private_key = PrivateKey::from_seed([42; KEY_LENGTH]);
-        let file = private_key
-            .to_key_file("alice laptop", UNIX_EPOCH)
-            .unwrap();
+        let file = private_key.to_key_file("alice laptop", UNIX_EPOCH).unwrap();
         let parsed = parse_private_key(&file, "fixture").unwrap();
         let entry = authorized_key_from_private_file(&file, "fixture", None).unwrap();
         let authorized = parse_authorized_keys(&entry.to_string(), "fixture").unwrap();
 
         assert_eq!(parsed.to_token(), private_key.to_token());
         assert_eq!(entry.comment(), "alice laptop");
-        assert_eq!(authorized.comment(&private_key.public_key()), Some("alice laptop"));
+        assert_eq!(
+            authorized.comment(&private_key.public_key()),
+            Some("alice laptop")
+        );
     }
 
     #[test]
